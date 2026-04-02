@@ -573,6 +573,15 @@ async function loadUnit(unitId) {
             }
         });
         
+	// ========== 新增：展開所屬章節 ==========
+const activeLink = document.querySelector(`.practice-link[data-practice-id="${unitId}"]`);
+if (activeLink) {
+    const chapterDiv = activeLink.closest('.practice-list');
+    if (chapterDiv && !chapterDiv.classList.contains('show')) {
+        chapterDiv.classList.add('show');
+    }
+}
+// ========== 新增結束 ==========
         window.scrollTo({ top: 0, behavior: 'smooth' });
         
     } catch (error) {

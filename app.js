@@ -1007,8 +1007,6 @@ function resetCurrentPractice() {
     if (currentUser && !currentUser.isAnonymous) {
         debouncedUpdateStats(currentUser.uid, userProgress);
     }
-    
-    showToast('已重置當前練習的答案', 'info');
 }
 
 // ==================== 核對答案 ====================

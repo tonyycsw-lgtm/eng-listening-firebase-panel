@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登入 · 聽力練習系統</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .login-container {
+            background: white;
+            border-radius: 24px;
+            padding: 40px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+        
+        .logo {
+            font-size: 48px;
+            color: #4f46e5;
+            margin-bottom: 16px;
+        }
+        
+        h1 {
+            font-size: 28px;
+            color: #1e293b;
+            margin-bottom: 8px;
+        }
+        
+        .subtitle {
+            color: #64748b;
+            font-size: 14px;
+            margin-bottom: 32px;
+        }
+        
+        .google-btn {
+            width: 100%;
+            padding: 14px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            color: #1e293b;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            transition: all 0.2s;
+            margin-bottom: 16px;
+        }
+        
+        .google-btn:hover {
+            background: #f8fafc;
+            border-color: #4f46e5;
+            transform: translateY(-1px);
+        }
+        
+        .guest-btn {
+            width: 100%;
+            padding: 14px;
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            color: #4f46e5;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            transition: all 0.2s;
+        }
+        
+        .guest-btn:hover {
+            background: #e2e8f0;
+            border-color: #4f46e5;
+            transform: translateY(-1px);
+        }
+        
+        .guest-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .divider {
+            display: flex;
+            align-items: center;
+            margin: 24px 0;
+            color: #94a3b8;
+            font-size: 12px;
+        }
+        
+        .divider::before,
+        .divider::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: #e2e8f0;
+        }
+        
+        .divider span {
+            padding: 0 12px;
+        }
+        
+        .guest-note {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 16px;
+        }
+        
+        .error-message {
+            background: #fee2e2;
+            color: #dc2626;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin-bottom: 20px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">
+            <i class="fas fa-headphones"></i>
+        </div>
+        <h1>聽力練習系統</h1>
+        <p class="subtitle">提升英語聽力，輕鬆學習</p>
+        
+        <div id="errorMessage" class="error-message"></div>
+        
+        <button id="googleLoginBtn" class="google-btn">
+            <i class="fab fa-google"></i> 使用 Google 帳號登入
+        </button>
+        
+        <div class="divider">
+            <span>或</span>
+        </div>
+        
+        <button id="guestLoginBtn" class="guest-btn">
+            <i class="fas fa-user-friends"></i> 訪客試用
+        </button>
+        <p class="guest-note">無需註冊，立即體驗聽力練習</p>
+    </div>
+
+    <script type="module">
+        import { 
+            auth,
+	    db,        	 
+            signInWithPopup, 
+            GoogleAuthProvider, 
+            signInAnonymously,
+            doc, 
+            setDoc, 
+            getDoc
+        } from './firebase-config.js';
+        
+        const googleBtn = document.getElementById('googleLoginBtn');
+        const guestBtn = document.getElementById('guestLoginBtn');
+        const errorDiv = document.getElementById('errorMessage');
+        
+        function showError(message) {
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+        
+        // Google 登入
+        googleBtn.addEventListener('click', async () => {
+            try {
+                googleBtn.disabled = true;
+                googleBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 登入中...';
+                
+                const provider = new GoogleAuthProvider();
+                const result = await signInWithPopup(auth, provider);
+                const user = result.user;
+                
+                // 檢查並創建用戶文檔
+                const userRef = doc(db, 'users', user.uid);
+                const userSnap = await getDoc(userRef);
+                
+                if (!userSnap.exists()) {
+                    await setDoc(userRef, {
+                        email: user.email,
+                        displayName: user.displayName || '',
+                        photoURL: user.photoURL || '',
+                        createdAt: new Date().toISOString(),
+                        lastLoginAt: new Date().toISOString(),
+                        loginCount: 1,
+                        progress: {},
+                        stats: {
+                            totalPractices: 0,
+                            avgPercentage: 0,
+                            badges: { gold: 0, pass: 0 }
+                        },
+                        totalScore: 0,
+                        badgesEarned: 0,
+                        premium: false,
+                        publishers: ["Open示範"],
+                        role: 'user'
+                    });
+                } else {
+                    // 更新最後登入時間
+                    await setDoc(userRef, {
+                        lastLoginAt: new Date().toISOString(),
+                        loginCount: (userSnap.data().loginCount || 0) + 1
+                    }, { merge: true });
+                }
+                
+                window.location.href = './index.html';
+                
+            } catch (error) {
+                console.error('Google 登入失敗:', error);
+                showError('登入失敗：' + error.message);
+                googleBtn.disabled = false;
+                googleBtn.innerHTML = '<i class="fab fa-google"></i> 使用 Google 帳號登入';
+            }
+        });
+        
+        // 訪客匿名登入
+        guestBtn.addEventListener('click', async () => {
+            try {
+                guestBtn.disabled = true;
+                guestBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 正在創建訪客帳號...';
+                
+                const credential = await signInAnonymously(auth);
+                const userId = credential.user.uid;
+                
+                // 檢查並創建訪客文檔
+                const userRef = doc(db, 'users', userId);
+                const userSnap = await getDoc(userRef);
+                
+                if (!userSnap.exists()) {
+                    await setDoc(userRef, {
+                        role: 'guest',
+                        createdAt: new Date().toISOString(),
+                        lastLoginAt: new Date().toISOString(),
+                        progress: {},
+                        stats: {
+                            totalPractices: 0,
+                            avgPercentage: 0,
+                            badges: { gold: 0, pass: 0 }
+                        },
+                        totalScore: 0,
+                        badgesEarned: 0,
+                        isGuest: true,
+                        publishers: ["Open示範"]
+                    });
+                }
+                
+                window.location.href = './index.html';
+                
+            } catch (error) {
+                console.error('訪客登入失敗:', error);
+                showError('訪客登入失敗，請稍後重試');
+                guestBtn.disabled = false;
+                guestBtn.innerHTML = '<i class="fas fa-user-friends"></i> 訪客試用';
+            }
+        });
+    </script>
+</body>
+</html>

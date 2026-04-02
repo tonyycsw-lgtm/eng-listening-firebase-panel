@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>聽力練習 (Firebase) </title>
+    <title>聽力練習 · 培生朗文電台</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
@@ -128,60 +128,28 @@
             padding-left: 0.75rem;
         }
 
-        .book-item {
-            margin-bottom: 0.5rem;
-        }
-
-        .book-header {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.6rem 0.75rem;
-            border-radius: 12px;
+        /* 章節標題 */
+        .chapter-item {
+            padding: 0.5rem 0.75rem;
+            font-size: 0.85rem;
             font-weight: 600;
             color: #1E3A8A;
-            background: #eef2ff;
-            margin-bottom: 0.25rem;
             cursor: pointer;
-        }
-
-        .book-header i {
-            width: 24px;
-        }
-
-        .chapter-list {
-            margin-left: 1.5rem;
-            margin-bottom: 0.5rem;
-            display: none;
-        }
-
-        .chapter-list.show {
-            display: block;
-        }
-
-        .chapter-item {
-            padding: 0.4rem 0.75rem;
-            font-size: 0.8rem;
-            color: #475569;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 500;
-            margin-top: 2px;
+            border-radius: 10px;
+            margin-top: 0.25rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .chapter-item:hover {
             background: #f1f5f9;
         }
 
-        .chapter-item.active {
-            background: #eef2ff;
-            color: #1E3A8A;
-        }
-
+        /* 練習列表 */
         .practice-list {
             margin-left: 1.5rem;
-            margin-top: 0.2rem;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.75rem;
             display: none;
         }
 
@@ -189,53 +157,47 @@
             display: block;
         }
 
-       /* ==================== 側邊欄練習項目樣式 ==================== */
+        .practice-link {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 8px 12px;
+            margin: 2px 0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 13px;
+            color: #334155;
+        }
 
-.practice-link {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 8px 12px;
-    margin: 2px 0;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    font-size: 13px;
-    color: #334155;
-}
+        .practice-link span:first-child {
+            flex: 1;
+            word-break: break-word;
+            white-space: normal;
+            line-height: 1.4;
+        }
 
-/* 練習文字區域 */
-.practice-link span:first-child {
-    flex: 1;
-    word-break: break-word;
-    white-space: normal;
-    line-height: 1.4;
-}
+        .practice-badge {
+            flex-shrink: 0;
+            font-size: 12px;
+            font-weight: 500;
+            text-align: right;
+            white-space: nowrap;
+        }
 
-/* 徽章區域 */
-.practice-badge {
-    flex-shrink: 0;
-    font-size: 12px;
-    font-weight: 500;
-    text-align: right;
-    white-space: nowrap;
-}
+        .practice-link:hover {
+            background-color: #f1f5f9;
+        }
 
-/* 懸停效果 */
-.practice-link:hover {
-    background-color: #f1f5f9;
-}
+        .practice-link.active {
+            background-color: #eef2ff;
+            color: #1E3A8A;
+        }
 
-/* 當前激活的練習 */
-.practice-link.active {
-    background-color: #eef2ff;
-    color: #1E3A8A;
-}
-
-.practice-link.active .practice-badge {
-    color: #1E3A8A;
-}
+        .practice-link.active .practice-badge {
+            color: #1E3A8A;
+        }
 
         .main-content {
             flex: 1;
@@ -332,6 +294,7 @@
             display: flex;
             align-items: center;
             gap: 12px;
+            cursor: pointer;
         }
 
         .option-row.correct-highlight {
@@ -373,23 +336,31 @@
             width: 16px;
             height: 16px;
             accent-color: #1E3A8A;
+            cursor: pointer;
         }
 
-  .explanation-area {
-    margin-top: 12px;
-    margin-left: 28px;
-    padding: 12px;
-    background-color: #f8fafc;
-    border-radius: 8px;
-    font-size: 13px;
-    color: #334155;
-    display: none;
-    width: calc(100% - 28px);
-}
+        input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: #1E3A8A;
+            cursor: pointer;
+        }
 
-.explanation-area.show {
-    display: block;
-}
+        .explanation-area {
+            margin-top: 12px;
+            margin-left: 28px;
+            padding: 12px;
+            background-color: #f8fafc;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #334155;
+            display: none;
+            width: calc(100% - 28px);
+        }
+
+        .explanation-area.show {
+            display: block;
+        }
 
         .action-bar {
             display: flex;
@@ -452,7 +423,6 @@
             height: auto;
         }
 
-        /* 圓點最小化 */
         .floating-player.minimized {
             width: 56px !important;
             height: 56px !important;
@@ -498,7 +468,6 @@
             display: none;
         }
 
-        /* 控制最小化（無文字容器） */
         .floating-player.control-minimized {
             height: 120px !important;
             overflow: hidden;
@@ -518,7 +487,6 @@
             display: none;
         }
 
-        /* 正常狀態隱藏 mini-icon */
         .mini-icon {
             display: none;
         }
@@ -593,12 +561,19 @@
             align-items: center;
             justify-content: center;
         }
+
         .float-control-btn.primary {
             background: #1E3A8A;
             color: white;
         }
-        .float-control-btn.primary:hover { background: #2563eb; }
-        .float-control-btn:hover { background: #e2e8f0; }
+
+        .float-control-btn.primary:hover { 
+            background: #2563eb; 
+        }
+
+        .float-control-btn:hover { 
+            background: #e2e8f0; 
+        }
 
         .floating-english {
             background: #f8fafc;
@@ -608,6 +583,7 @@
             flex-shrink: 0;
             transition: all 0.2s;
         }
+
         .floating-english.hidden {
             display: none;
         }
@@ -637,6 +613,7 @@
             flex-shrink: 0;
             transition: all 0.2s;
         }
+
         .floating-chinese.hidden {
             display: none;
         }
@@ -668,13 +645,9 @@
             border-bottom-right-radius: 20px;
             z-index: 10;
         }
+
         .resize-handle:hover {
             background: linear-gradient(135deg, transparent 50%, #1E3A8A 50%);
-        }
-
-        /* 隱藏的單元選擇器（用於兼容性） */
-        #unit-select {
-            display: none;
         }
 
         @media (max-width: 768px) {
@@ -747,7 +720,7 @@
 <!-- 隱藏的單元選擇器（用於兼容性） -->
 <select id="unit-select" style="display: none;"></select>
 
-<!-- 懸浮視窗 -->
+<!-- 懸浮視窗 - 已移到上方中間 -->
 <div id="floatingPlayer" class="floating-player minimized" style="top: 20px; left: 50%; transform: translateX(-50%);">
     <div class="floating-header" id="floatingHeader">
         <h3><i class="fas fa-headphones"></i> 聽力控制</h3>

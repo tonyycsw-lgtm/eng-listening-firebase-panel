@@ -414,9 +414,10 @@ function updateUserInterface() {
                 <div class="user-email">進度儲存在雲端</div>
             `;
         }
-        if (logoutBtn) {
-            logoutBtn.style.display = 'inline-block';
-        }
+if (logoutBtn) {
+    logoutBtn.style.display = 'inline-block';
+    logoutBtn.onclick = handleLogout;  // ← 添加這行
+}
         return;
     }
     
@@ -436,9 +437,10 @@ function updateUserInterface() {
                 </div>
             `;
         }
-        if (logoutBtn) {
-            logoutBtn.style.display = 'inline-block';
-        }
+if (logoutBtn) {
+    logoutBtn.style.display = 'inline-block';
+    logoutBtn.onclick = handleLogout;  // 添加
+}
     }
 }
 

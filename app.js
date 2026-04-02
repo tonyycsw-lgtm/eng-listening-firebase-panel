@@ -411,7 +411,7 @@ function updateUserInterface() {
         if (userDetails) {
             userDetails.innerHTML = `
                 <div class="user-name">訪客模式</div>
-                <div class="user-email">進度儲存在雲端</div>
+                <div class="user-email">歡迎試用</div>
             `;
         }
 if (logoutBtn) {

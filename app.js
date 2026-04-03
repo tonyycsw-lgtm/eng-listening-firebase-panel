@@ -53,8 +53,12 @@ let updateStatsTimeout = null;
 
 // 在線狀態更新定時器
 let onlineStatusInterval = null;
-const ONLINE_STATUS_INTERVAL = 60000;
+// ==================== 章節排程相關變量 ====================
+let systemConfig = null;           // 系統配置（章節排程）
+let availableChapters = [];        // 可用章節列表
+let currentDisplayChapter = null;  // 當前顯示的章節
 
+const ONLINE_STATUS_INTERVAL = 60000;
 // ==================== 儲存管理器（數據隔離）====================
 const StorageManager = {
     getCurrentUserId() {
@@ -126,6 +130,105 @@ function showToast(message, type = 'info') {
     setTimeout(() => toast.remove(), 3000);
 }
 
+// ==================== 章節排程函數 ====================
+
+/**
+ * 載入系統配置（章節排程）
+ */
+async function loadSystemConfig() {
+    try {
+        const configRef = doc(db, 'system_config', 'settings');
+        const configSnap = await getDoc(configRef);
+        
+        if (configSnap.exists()) {
+            systemConfig = configSnap.data();
+            console.log('📅 系統配置已載入:', {
+                currentChapter: systemConfig.currentChapterId,
+                totalChapters: systemConfig.totalChapters,
+                mapping: systemConfig.chapterMapping
+            });
+            return true;
+        } else {
+            console.warn('⚠️ 找不到系統配置，使用默認顯示');
+            return false;
+        }
+    } catch (error) {
+        console.error('載入系統配置失敗:', error);
+        return false;
+    }
+}
+
+/**
+ * 獲取當前月份應顯示的章節列表（最近 3 個章節）
+ * @param {Array} allChapters 所有章節列表
+ * @returns {Array} 應該顯示的章節列表
+ */
+function getVisibleChapters(allChapters) {
+    if (!systemConfig || !systemConfig.chapterMapping) {
+        // 如果沒有配置，顯示所有章節
+        return allChapters;
+    }
+    
+    const now = new Date();
+    const visibleChapterIds = [];
+    
+    // 獲取最近 3 個月份的章節 ID
+    for (let i = 0; i < 3; i++) {
+        const targetDate = new Date(now);
+        targetDate.setMonth(now.getMonth() - i);
+        const yearMonth = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}`;
+        
+        const chapterId = systemConfig.chapterMapping[yearMonth];
+        if (chapterId && !visibleChapterIds.includes(chapterId)) {
+            visibleChapterIds.push(chapterId);
+        }
+    }
+    
+    // 過濾章節
+    return allChapters.filter(chapter => visibleChapterIds.includes(chapter.id));
+}
+
+/**
+ * 獲取章節的顯示標題（包含年月）
+ * @param {Object} chapter 章節對象
+ * @param {number} offset 月份偏移（0=當前月，1=上個月，2=上上個月）
+ * @returns {string} 格式化標題
+ */
+function getChapterDisplayTitle(chapter, offset = 0) {
+    if (!systemConfig || !systemConfig.chapterMapping) {
+        return chapter.title;
+    }
+    
+    const now = new Date();
+    const targetDate = new Date(now);
+    targetDate.setMonth(now.getMonth() - offset);
+    const year = targetDate.getFullYear();
+    const month = targetDate.getMonth() + 1;
+    
+    // 左側欄格式：2026.04 · 故事天地
+    return `${year}.${String(month).padStart(2, '0')} · ${chapter.title}`;
+}
+
+/**
+ * 獲取主內容區的標題
+ * @param {Object} chapter 章節對象
+ * @param {number} offset 月份偏移
+ * @returns {string} 格式化標題
+ */
+function getMainContentTitle(chapter, offset = 0) {
+    if (!systemConfig || !systemConfig.chapterMapping) {
+        return chapter.title;
+    }
+    
+    const now = new Date();
+    const targetDate = new Date(now);
+    targetDate.setMonth(now.getMonth() - offset);
+    const year = targetDate.getFullYear();
+    const month = targetDate.getMonth() + 1;
+    
+    // 主內容區格式：2026年4月 · 故事天地
+    return `${year}年${month}月 · ${chapter.title}`;
+}
 // ==================== 在線狀態更新 ====================
 async function updateLastActive() {
     if (isGuestMode) return;
@@ -278,6 +381,7 @@ function showNoMaterialMessage() {
 }
 
 // ==================== 側邊欄渲染 ====================
+// ==================== 側邊欄渲染 ====================
 function renderSidebar() {
     const container = document.getElementById('booksContainer');
     if (!container) return;
@@ -294,28 +398,42 @@ function renderSidebar() {
         return;
     }
     
-    const chapters = {};
+    // 構建章節列表
+    const chaptersMap = new Map();
     availableUnits.forEach(unit => {
         const chapterId = unit.chapter || 'default';
-        if (!chapters[chapterId]) {
-            chapters[chapterId] = {
+        if (!chaptersMap.has(chapterId)) {
+            chaptersMap.set(chapterId, {
+                id: chapterId,
                 title: unit.chapterTitle || `Chapter ${chapterId}`,
                 practices: []
-            };
+            });
         }
-        chapters[chapterId].practices.push(unit);
+        chaptersMap.get(chapterId).practices.push(unit);
     });
     
+    // 轉為陣列並排序
+    let chapterList = Array.from(chaptersMap.values());
+    chapterList.sort((a, b) => {
+        const numA = parseInt(a.id.replace('ch', '')) || 0;
+        const numB = parseInt(b.id.replace('ch', '')) || 0;
+        return numA - numB;
+    });
+    
+    // 根據排程過濾章節（只顯示最近 3 個章節）
+    const visibleChapters = getVisibleChapters(chapterList);
+    
     let html = '';
-    for (const [chapterId, chapter] of Object.entries(chapters)) {
-        if (chapter.practices.length === 0) continue;
-        
+    for (let idx = 0; idx < visibleChapters.length; idx++) {
+        const chapter = visibleChapters[idx];
+        const chapterId = chapter.id;
+        const displayTitle = getChapterDisplayTitle(chapter, idx);
         const hasActivePractice = chapter.practices.some(p => p.id === currentUnitId);
         const showClass = hasActivePractice ? 'show' : '';
         
         html += `
             <div class="chapter-item" data-chapter="${chapterId}">
-                <i class="fas fa-folder-open"></i> ${escapeHtml(chapter.title)}
+                <i class="fas fa-folder-open"></i> ${escapeHtml(displayTitle)}
             </div>
             <div class="practice-list ${showClass}" id="practices-${chapterId}">
         `;
@@ -335,6 +453,7 @@ function renderSidebar() {
     
     container.innerHTML = html;
     
+    // 綁定章節點擊事件（展開/收合）
     document.querySelectorAll('.chapter-item').forEach(chapter => {
         chapter.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -346,6 +465,7 @@ function renderSidebar() {
         });
     });
     
+    // 綁定練習點擊事件
     document.querySelectorAll('.practice-link').forEach(link => {
         link.addEventListener('click', () => {
             const unitId = link.dataset.practiceId;
@@ -355,6 +475,7 @@ function renderSidebar() {
         });
     });
     
+    // 更新徽章顯示
     updateSidebarBadges();
     if (currentUnitId) {
         const levelMatch = currentUnitId.match(/^([a-zA-Z0-9]+)_/);
@@ -368,7 +489,6 @@ function renderSidebar() {
         }
     }
 }
-
 function updateSidebarBadges() {
     if (!userProgress) return;
     
@@ -556,11 +676,46 @@ async function loadUnit(unitId) {
         
         renderQuestions(currentPracticeData.questions);
         
+               // 更新主內容區標題（使用年月格式）
         const titleEl = document.getElementById('practice-title');
-        if (titleEl) {
-            titleEl.innerHTML = escapeHtml(currentPracticeData.title || '');
-        }
         const descEl = document.getElementById('practice-desc');
+        
+        if (titleEl) {
+            // 獲取當前練習所屬的章節信息
+            const unitInfo = unitsIndex.units.find(u => u.id === unitId);
+            if (unitInfo && systemConfig && systemConfig.chapterMapping) {
+                // 計算章節偏移量
+                const chapterList = [];
+                const chaptersMap = new Map();
+                unitsIndex.units.forEach(unit => {
+                    if (!chaptersMap.has(unit.chapter)) {
+                        chaptersMap.set(unit.chapter, {
+                            id: unit.chapter,
+                            title: unit.chapterTitle
+                        });
+                    }
+                });
+                for (const [id, title] of chaptersMap) {
+                    chapterList.push({ id, title });
+                }
+                chapterList.sort((a, b) => {
+                    const numA = parseInt(a.id.replace('ch', '')) || 0;
+                    const numB = parseInt(b.id.replace('ch', '')) || 0;
+                    return numA - numB;
+                });
+                
+                const chapterIndex = chapterList.findIndex(ch => ch.id === unitInfo.chapter);
+                if (chapterIndex !== -1) {
+                    const mainTitle = getMainContentTitle(chapterList[chapterIndex], chapterIndex);
+                    titleEl.innerHTML = escapeHtml(mainTitle);
+                } else {
+                    titleEl.innerHTML = escapeHtml(currentPracticeData.title || '');
+                }
+            } else {
+                titleEl.innerHTML = escapeHtml(currentPracticeData.title || '');
+            }
+        }
+        
         if (descEl) {
             descEl.innerHTML = escapeHtml(currentPracticeData.desc || '');
         }
@@ -1788,6 +1943,9 @@ async function init() {
             
             updateUserInterface();
             await loadUnitsIndex();
+ // 載入系統配置（章節排程）
+            await loadSystemConfig();
+
             renderSidebar();
             initFloatingControls();
             

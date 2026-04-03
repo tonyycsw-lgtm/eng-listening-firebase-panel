@@ -194,9 +194,23 @@ function getVisibleChapters(allChapters) {
  * @param {number} offset 月份偏移（0=當前月，1=上個月，2=上上個月）
  * @returns {string} 格式化標題
  */
+/**
+ * 獲取章節的顯示標題（包含年月）
+ * @param {Object|string} chapter 章節對象或標題字符串
+ * @param {number} offset 月份偏移（0=當前月，1=上個月，2=上上個月）
+ * @returns {string} 格式化標題
+ */
 function getChapterDisplayTitle(chapter, offset = 0) {
+    // 獲取章節標題
+    let chapterTitle = '';
+    if (typeof chapter === 'object') {
+        chapterTitle = chapter.title || '';
+    } else {
+        chapterTitle = chapter;
+    }
+    
     if (!systemConfig || !systemConfig.chapterMapping) {
-        return chapter.title;
+        return chapterTitle;
     }
     
     const now = new Date();
@@ -206,18 +220,26 @@ function getChapterDisplayTitle(chapter, offset = 0) {
     const month = targetDate.getMonth() + 1;
     
     // 左側欄格式：2026.04 · 故事天地
-    return `${year}.${String(month).padStart(2, '0')} · ${chapter.title}`;
+    return `${year}.${String(month).padStart(2, '0')} · ${chapterTitle}`;
 }
 
 /**
  * 獲取主內容區的標題
- * @param {Object} chapter 章節對象
+ * @param {Object|string} chapter 章節對象或標題字符串
  * @param {number} offset 月份偏移
  * @returns {string} 格式化標題
  */
 function getMainContentTitle(chapter, offset = 0) {
+    // 獲取章節標題
+    let chapterTitle = '';
+    if (typeof chapter === 'object') {
+        chapterTitle = chapter.title || '';
+    } else {
+        chapterTitle = chapter;
+    }
+    
     if (!systemConfig || !systemConfig.chapterMapping) {
-        return chapter.title;
+        return chapterTitle;
     }
     
     const now = new Date();
@@ -227,9 +249,8 @@ function getMainContentTitle(chapter, offset = 0) {
     const month = targetDate.getMonth() + 1;
     
     // 主內容區格式：2026年4月 · 故事天地
-    return `${year}年${month}月 · ${chapter.title}`;
-}
-// ==================== 在線狀態更新 ====================
+    return `${year}年${month}月 · ${chapterTitle}`;
+}// ==================== 在線狀態更新 ====================
 async function updateLastActive() {
     if (isGuestMode) return;
     if (!currentUser) return;

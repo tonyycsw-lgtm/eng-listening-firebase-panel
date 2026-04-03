@@ -725,13 +725,23 @@ async function loadUnit(unitId) {
                     return numA - numB;
                 });
                 
-                const chapterIndex = chapterList.findIndex(ch => ch.id === unitInfo.chapter);
-                if (chapterIndex !== -1) {
-                    const mainTitle = getMainContentTitle(chapterList[chapterIndex], chapterIndex);
-                    titleEl.innerHTML = escapeHtml(mainTitle);
-                } else {
-                    titleEl.innerHTML = escapeHtml(currentPracticeData.title || '');
-                }
+               // 直接從 unitInfo 獲取章節標題
+const chapterTitleText = unitInfo.chapterTitle || '';
+
+// 計算年月
+const now = new Date();
+// 根據章節編號計算偏移（ch1=2月偏移2，ch2=3月偏移1，ch3=4月偏移0）
+const chNum = parseInt(unitInfo.chapter.replace('ch', ''));
+const offset = 3 - chNum;  // ch1→2, ch2→1, ch3→0
+const targetDate = new Date(now);
+targetDate.setMonth(now.getMonth() - offset);
+const year = targetDate.getFullYear();
+const month = targetDate.getMonth() + 1;
+
+const mainTitle = `${year}年${month}月 · ${chapterTitleText}`;
+titleEl.innerHTML = escapeHtml(mainTitle);
+
+console.log('設置標題:', mainTitle, '章節:', unitInfo.chapter, '偏移:', offset);
             } else {
                 titleEl.innerHTML = escapeHtml(currentPracticeData.title || '');
             }

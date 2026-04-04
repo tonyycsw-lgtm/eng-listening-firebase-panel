@@ -187,7 +187,7 @@ function getVisibleChapters(allChapters) {
     return allChapters.filter(chapter => visibleChapterIds.includes(chapter.id));
 }
 
-function getChapterDisplayTitle(chapter, offset = 0) {
+function getChapterDisplayTitle(chapter) {
     let chapterTitle = '';
     if (typeof chapter === 'object') {
         chapterTitle = chapter.title || '';
@@ -199,16 +199,26 @@ function getChapterDisplayTitle(chapter, offset = 0) {
         return chapterTitle;
     }
     
-    const now = new Date();
-    const targetDate = new Date(now);
-    targetDate.setMonth(now.getMonth() - offset);
-    const year = targetDate.getFullYear();
-    const month = targetDate.getMonth() + 1;
+    // 獲取章節 ID
+    const chapterId = typeof chapter === 'object' ? chapter.id : chapter;
     
-    return `${year}.${String(month).padStart(2, '0')} · ${chapterTitle}`;
-}
-
-// ==================== 在線狀態更新 ====================
+    // 從 chapterMapping 查找對應的月份
+    let foundYearMonth = null;
+    for (const [yearMonth, id] of Object.entries(systemConfig.chapterMapping)) {
+        if (id === chapterId) {
+            foundYearMonth = yearMonth;
+            break;
+        }
+    }
+    
+    if (foundYearMonth) {
+        const [year, month] = foundYearMonth.split('-');
+        return `${year}.${month} · ${chapterTitle}`;
+    }
+    
+    // 如果找不到對應月份，回傳章節標題（不顯示年月）
+    return chapterTitle;
+}// ==================== 在線狀態更新 ====================
 async function updateLastActive() {
     if (isGuestMode) return;
     if (!currentUser) return;
@@ -362,7 +372,11 @@ function filterUnitsByUser(units) {
 
     // 3. 一般登入使用者
     if (currentUser && currentUserData) {
-        const userGrades = currentUserData.grade || [];
+let userGrades = currentUserData.grade || [];
+// 如果是字串，轉為陣列
+if (typeof userGrades === 'string') {
+    userGrades = [userGrades];
+}
         const userPublishers = currentUserData.publishers || [];
         
         // 檢查試用期
@@ -486,7 +500,7 @@ function renderSidebar() {
     for (let idx = 0; idx < visibleChapters.length; idx++) {
         const chapter = visibleChapters[idx];
         const chapterId = chapter.id;
-        const displayTitle = getChapterDisplayTitle(chapter, idx);
+const displayTitle = getChapterDisplayTitle(chapter);
         const hasActivePractice = chapter.practices.some(p => p.id === currentUnitId);
         const showClass = hasActivePractice ? 'show' : '';
         
@@ -748,15 +762,26 @@ async function loadUnit(unitId) {
         if (titleEl) {
             const unitInfo = unitsIndex.units.find(u => u.id === unitId);
             if (unitInfo && systemConfig && systemConfig.chapterMapping) {
-                const chapterTitleText = unitInfo.chapterTitle || '';
-                const now = new Date();
-                const chNum = parseInt(unitInfo.chapter.replace('ch', ''));
-                const offset = 3 - chNum;
-                const targetDate = new Date(now);
-                targetDate.setMonth(now.getMonth() - offset);
-                const year = targetDate.getFullYear();
-                const month = targetDate.getMonth() + 1;
-                const mainTitle = `${year}年${month}月 · ${chapterTitleText}`;
+                // 直接從 unitInfo 獲取章節標題
+const chapterTitleText = unitInfo.chapterTitle || '';
+
+// 從系統配置獲取章節對應的月份
+let year = new Date().getFullYear();
+let month = new Date().getMonth() + 1;
+
+if (systemConfig && systemConfig.chapterMapping) {
+    // 查找當前章節對應的月份
+    for (const [yearMonth, chapterId] of Object.entries(systemConfig.chapterMapping)) {
+        if (chapterId === unitInfo.chapter) {
+            const [mapYear, mapMonth] = yearMonth.split('-');
+            year = parseInt(mapYear);
+            month = parseInt(mapMonth);
+            break;
+        }
+    }
+}
+
+const mainTitle = `${year}年${month}月 · ${chapterTitleText}`;
                 titleEl.innerHTML = escapeHtml(mainTitle);
             } else {
                 titleEl.innerHTML = escapeHtml(currentPracticeData.title || '');

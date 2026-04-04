@@ -391,13 +391,16 @@ function addTestUnit(materialData) {
     const randomId = Math.random().toString(36).substring(2, 8);
     const testId = `test_${timestamp}_${randomId}`;
     
-    const chapterId = materialData.chapter || 'test_chapter';
-    const chapterTitle = materialData.chapterTitle || '測試章節';
+    // 從 JSON 中獲取 level、chapter、chapterTitle
+    const level = materialData.level || materialData.metadata?.level || '6A';
+    const chapterId = materialData.chapter || materialData.metadata?.chapter || 'test_chapter';
+    const chapterTitle = materialData.chapterTitle || materialData.metadata?.chapterTitle || '測試章節';
     
     const testUnit = {
         id: testId,
         title: materialData.title,
         description: materialData.desc || '',
+        level: level,
         chapter: chapterId,
         chapterTitle: chapterTitle,
         grade: materialData.metadata?.grade || ['P6'],
@@ -410,10 +413,9 @@ function addTestUnit(materialData) {
     unitsIndex.units.push(testUnit);
     testMaterials[testId] = materialData;
     
-    console.log(`✅ 測試單元已添加: ${testId} (${materialData.title})`);
+    console.log(`✅ 測試單元已添加: ${testId} (${materialData.title}) → Level: ${level}, 章節: ${chapterId} (${chapterTitle})`);
     return testId;
 }
-
 // ==================== 在線狀態更新 ====================
 async function updateLastActive() {
     if (isGuestMode) return;
@@ -673,69 +675,108 @@ function renderSidebar() {
         return;
     }
     
-    const chaptersMap = new Map();
+    // 按 Level 分組
+    const levelMap = new Map();
     availableUnits.forEach(unit => {
-        const chapterId = unit.chapter || 'default';
-        if (!chaptersMap.has(chapterId)) {
-            chaptersMap.set(chapterId, {
-                id: chapterId,
-                title: unit.chapterTitle || `Chapter ${chapterId}`,
-                practices: []
-            });
+        const level = unit.level || '6A';
+        if (!levelMap.has(level)) {
+            levelMap.set(level, []);
         }
-        chaptersMap.get(chapterId).practices.push(unit);
+        levelMap.get(level).push(unit);
     });
     
-    let chapterList = Array.from(chaptersMap.values());
-    chapterList.sort((a, b) => {
-        const numA = parseInt(a.id.replace('ch', '')) || 0;
-        const numB = parseInt(b.id.replace('ch', '')) || 0;
-        return numA - numB;
+    // 排序 Level（5A, 6A, 6B...）
+    const sortedLevels = Array.from(levelMap.keys()).sort((a, b) => {
+        const numA = parseInt(a) || 0;
+        const numB = parseInt(b) || 0;
+        if (numA !== numB) return numA - numB;
+        return a.localeCompare(b);
     });
-    
-    const visibleChapters = getVisibleChapters(chapterList);
     
     let html = '';
-    for (let idx = 0; idx < visibleChapters.length; idx++) {
-        const chapter = visibleChapters[idx];
-        const chapterId = chapter.id;
-        const displayTitle = getChapterDisplayTitle(chapter);
-        const hasActivePractice = chapter.practices.some(p => p.id === currentUnitId);
-        const showClass = hasActivePractice ? 'show' : '';
+    
+    for (const level of sortedLevels) {
+        const levelUnits = levelMap.get(level);
+        
+        // 按章節分組
+        const chaptersMap = new Map();
+        levelUnits.forEach(unit => {
+            const chapterId = unit.chapter || 'default';
+            if (!chaptersMap.has(chapterId)) {
+                chaptersMap.set(chapterId, {
+                    id: chapterId,
+                    title: unit.chapterTitle || `Chapter ${chapterId}`,
+                    practices: []
+                });
+            }
+            chaptersMap.get(chapterId).practices.push(unit);
+        });
+        
+        let chapterList = Array.from(chaptersMap.values());
+        chapterList.sort((a, b) => {
+            const numA = parseInt(a.id.replace('ch', '')) || 0;
+            const numB = parseInt(b.id.replace('ch', '')) || 0;
+            return numA - numB;
+        });
+        
+        const visibleChapters = getVisibleChapters(chapterList);
+        
+        // 只有當該 Level 有可見章節時才顯示 Level 標題
+        if (visibleChapters.length === 0) continue;
         
         html += `
-            <div class="chapter-item" data-chapter="${chapterId}">
-                <i class="fas fa-folder-open"></i> ${escapeHtml(displayTitle)}
-            </div>
-            <div class="practice-list ${showClass}" id="practices-${chapterId}">
+            <div class="level-section" style="margin-top: 16px;">
+                <div class="level-title" style="font-size: 13px; font-weight: 700; color: #1E3A8A; padding: 8px 0 4px 0; border-bottom: 2px solid #eef2ff; margin-bottom: 8px;">
+                    <i class="fas fa-layer-group"></i> Level ${level}
+                </div>
         `;
         
-        chapter.practices.forEach(unit => {
-            const isActive = currentUnitId === unit.id;
+        for (let idx = 0; idx < visibleChapters.length; idx++) {
+            const chapter = visibleChapters[idx];
+            const chapterId = chapter.id;
+            const displayTitle = getChapterDisplayTitle(chapter);
+            const hasActivePractice = chapter.practices.some(p => p.id === currentUnitId);
+            const showClass = hasActivePractice ? 'show' : '';
+            
             html += `
-                <div class="practice-link ${isActive ? 'active' : ''}" data-practice-id="${unit.id}">
-                    <span>${escapeHtml(unit.title)}</span>
-                    <span class="practice-badge"></span>
+                <div class="chapter-item" data-chapter="${chapterId}" data-level="${level}">
+                    <i class="fas fa-folder-open"></i> ${escapeHtml(displayTitle)}
                 </div>
+                <div class="practice-list ${showClass}" id="practices-${level}-${chapterId}">
             `;
-        });
+            
+            chapter.practices.forEach(unit => {
+                const isActive = currentUnitId === unit.id;
+                html += `
+                    <div class="practice-link ${isActive ? 'active' : ''}" data-practice-id="${unit.id}">
+                        <span>${escapeHtml(unit.title)}</span>
+                        <span class="practice-badge"></span>
+                    </div>
+                `;
+            });
+            
+            html += `</div>`;
+        }
         
         html += `</div>`;
     }
     
     container.innerHTML = html;
     
+    // 綁定章節點擊事件
     document.querySelectorAll('.chapter-item').forEach(chapter => {
         chapter.addEventListener('click', (e) => {
             e.stopPropagation();
             const chapterId = chapter.dataset.chapter;
-            const practiceList = document.getElementById(`practices-${chapterId}`);
+            const level = chapter.dataset.level;
+            const practiceList = document.getElementById(`practices-${level}-${chapterId}`);
             if (practiceList) {
                 practiceList.classList.toggle('show');
             }
         });
     });
     
+    // 綁定練習點擊事件
     document.querySelectorAll('.practice-link').forEach(link => {
         link.addEventListener('click', () => {
             const unitId = link.dataset.practiceId;
@@ -747,19 +788,7 @@ function renderSidebar() {
     });
     
     updateSidebarBadges();
-    if (currentUnitId) {
-        const levelMatch = currentUnitId.match(/^([a-zA-Z0-9]+)_/);
-        if (levelMatch) {
-            let level = levelMatch[1].toUpperCase();
-            const levelTitle = `Level ${level}`;
-            const levelElement = document.querySelector('.nav-section-title');
-            if (levelElement) {
-                levelElement.textContent = levelTitle;
-            }
-        }
-    }
 }
-
 function updateSidebarBadges() {
     if (!userProgress) return;
     

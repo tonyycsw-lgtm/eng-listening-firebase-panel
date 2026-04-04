@@ -141,6 +141,35 @@ function setGuestGrade(grade) {
     localStorage.setItem('guestGrade', grade);
 }
 
+// ==================== 語音預加載 ====================
+let voicesLoaded = false;
+
+function preloadVoices() {
+    return new Promise((resolve) => {
+        // 如果已經有語音，直接 resolve
+        if (window.speechSynthesis.getVoices().length > 0) {
+            voicesLoaded = true;
+            resolve();
+            return;
+        }
+        
+        // 等待語音加載完成
+        window.speechSynthesis.onvoiceschanged = () => {
+            voicesLoaded = true;
+            resolve();
+        };
+        
+        // 設置超時，避免無限等待（最多等待 2 秒）
+        setTimeout(() => {
+            if (!voicesLoaded) {
+                console.warn('⚠️ 語音加載超時，使用默認語音');
+                voicesLoaded = true;
+                resolve();
+            }
+        }, 2000);
+    });
+}
+
 // ==================== 章節排程函數 ====================
 async function loadSystemConfig() {
     try {
@@ -296,14 +325,33 @@ const roleIcons = { host: 'fa-microphone-alt', narrator: 'fa-bullhorn', announce
 
 function getVoiceForRole(role) {
     const voices = window.speechSynthesis.getVoices();
-    const roleMap = { 'host': { gender: 'female', lang: 'en-GB' }, 'narrator': { gender: 'male', lang: 'en-GB' }, 'announcer': { gender: 'male', lang: 'en-GB' } };
+    
+    // 如果語音尚未加載，返回 null（播放時會使用系統默認）
+    if (voices.length === 0) {
+        console.warn('⚠️ 語音尚未加載完成');
+        return null;
+    }
+    
+    const roleMap = { 
+        'host': { gender: 'female', lang: 'en-GB' },      // 主持人：女聲
+        'narrator': { gender: 'male', lang: 'en-GB' },    // 旁白：男聲
+        'announcer': { gender: 'female', lang: 'en-GB' }, // 播音員：女聲 ✅ 已修改
+        'caller': { gender: 'female', lang: 'en-GB' }     // 來賓：女聲
+    };
     const target = roleMap[role.toLowerCase()] || { lang: 'en-GB' };
-    let matched = voices.find(v => v.lang.includes(target.lang) && (target.gender ? (v.name.includes(target.gender === 'female' ? 'Female' : 'Male')) : true));
+    
+    // 優先匹配：語言 + 性別
+    let matched = voices.find(v => 
+        v.lang.includes(target.lang) && 
+        (target.gender ? v.name.includes(target.gender === 'female' ? 'Female' : 'Male') : true)
+    );
+    
+    // 備用：只匹配語言（忽略性別）
     if (!matched) matched = voices.find(v => v.lang.includes('en-GB'));
     if (!matched) matched = voices.find(v => v.lang.includes('en'));
+    
     return matched || voices[0];
 }
-
 // ==================== 解析腳本 ====================
 function parseSegments(audioScript) {
     const segments = [];
@@ -2004,7 +2052,8 @@ async function init() {
             updateUserInterface();
             await loadUnitsIndex();
             await loadSystemConfig();
-            renderSidebar();
+            await preloadVoices();
+	    renderSidebar();
             initFloatingControls();
             
             if (unitsIndex.units && unitsIndex.units.length > 0) {

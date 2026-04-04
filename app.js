@@ -303,19 +303,19 @@ function renderAdminTools() {
             <div style="display: flex; flex-direction: column; gap: 8px;">
                 <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; color: #475569;">
                     <i class="fas fa-file-upload"></i>
-                    <span>選擇 JSON 檔案 (可多選)</span>
+                    <span>測試 JSON 檔案</span>
                     <input type="file" id="testFileInput" accept=".json" multiple style="display: none;">
                 </label>
                 <div style="display: flex; gap: 8px;">
                     <button id="uploadTestBtn" class="admin-tool-btn" style="flex:1; background: #4f46e5; color: white; border: none; padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer;">
-                        <i class="fas fa-upload"></i> 上傳測試單元
+                        <i class="fas fa-upload"></i> 上傳JSON
                     </button>
                     <button id="clearTestBtn" class="admin-tool-btn" style="flex:1; background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer;">
-                        <i class="fas fa-trash-alt"></i> 清除全部
+                        <i class="fas fa-trash-alt"></i> 清除
                     </button>
                 </div>
                 <div style="font-size: 10px; color: #94a3b8; text-align: center;">
-                    💡 刷新頁面即清除測試數據
+                     刷新頁面, 即清除數據
                 </div>
             </div>
         </div>

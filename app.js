@@ -141,25 +141,37 @@ function setGuestGrade(grade) {
     localStorage.setItem('guestGrade', grade);
 }
 
+// ==================== 記住上次練習（僅一般用戶）====================
+function saveLastPractice(unitId) {
+    if (isGuestMode) return;  // 訪客模式不儲存
+    if (!unitId) return;
+    const key = `${StorageManager.getPrefix()}lastPractice`;
+    localStorage.setItem(key, unitId);
+    console.log(`💾 儲存上次練習: ${unitId}`);
+}
+
+function getLastPractice() {
+    if (isGuestMode) return null;  // 訪客模式不回傳
+    const key = `${StorageManager.getPrefix()}lastPractice`;
+    return localStorage.getItem(key);
+}
+
 // ==================== 語音預加載 ====================
 let voicesLoaded = false;
 
 function preloadVoices() {
     return new Promise((resolve) => {
-        // 如果已經有語音，直接 resolve
         if (window.speechSynthesis.getVoices().length > 0) {
             voicesLoaded = true;
             resolve();
             return;
         }
         
-        // 等待語音加載完成
         window.speechSynthesis.onvoiceschanged = () => {
             voicesLoaded = true;
             resolve();
         };
         
-        // 設置超時，避免無限等待（最多等待 2 秒）
         setTimeout(() => {
             if (!voicesLoaded) {
                 console.warn('⚠️ 語音加載超時，使用默認語音');
@@ -228,10 +240,8 @@ function getChapterDisplayTitle(chapter) {
         return chapterTitle;
     }
     
-    // 獲取章節 ID
     const chapterId = typeof chapter === 'object' ? chapter.id : chapter;
     
-    // 從 chapterMapping 查找對應的月份
     let foundYearMonth = null;
     for (const [yearMonth, id] of Object.entries(systemConfig.chapterMapping)) {
         if (id === chapterId) {
@@ -245,9 +255,19 @@ function getChapterDisplayTitle(chapter) {
         return `${year}.${month} · ${chapterTitle}`;
     }
     
-    // 如果找不到對應月份，回傳章節標題（不顯示年月）
     return chapterTitle;
-}// ==================== 在線狀態更新 ====================
+}
+
+// 獲取當前月份對應的章節 ID
+function getCurrentMonthChapterId() {
+    if (!systemConfig || !systemConfig.chapterMapping) return null;
+    
+    const now = new Date();
+    const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return systemConfig.chapterMapping[yearMonth] || null;
+}
+
+// ==================== 在線狀態更新 ====================
 async function updateLastActive() {
     if (isGuestMode) return;
     if (!currentUser) return;
@@ -326,32 +346,30 @@ const roleIcons = { host: 'fa-microphone-alt', narrator: 'fa-bullhorn', announce
 function getVoiceForRole(role) {
     const voices = window.speechSynthesis.getVoices();
     
-    // 如果語音尚未加載，返回 null（播放時會使用系統默認）
     if (voices.length === 0) {
         console.warn('⚠️ 語音尚未加載完成');
         return null;
     }
     
     const roleMap = { 
-        'host': { gender: 'female', lang: 'en-GB' },      // 主持人：女聲
-        'narrator': { gender: 'male', lang: 'en-GB' },    // 旁白：男聲
-        'announcer': { gender: 'female', lang: 'en-GB' }, // 播音員：女聲 ✅ 已修改
-        'caller': { gender: 'female', lang: 'en-GB' }     // 來賓：女聲
+        'host': { gender: 'female', lang: 'en-GB' },
+        'narrator': { gender: 'male', lang: 'en-GB' },
+        'announcer': { gender: 'female', lang: 'en-GB' },
+        'caller': { gender: 'female', lang: 'en-GB' }
     };
     const target = roleMap[role.toLowerCase()] || { lang: 'en-GB' };
     
-    // 優先匹配：語言 + 性別
     let matched = voices.find(v => 
         v.lang.includes(target.lang) && 
         (target.gender ? v.name.includes(target.gender === 'female' ? 'Female' : 'Male') : true)
     );
     
-    // 備用：只匹配語言（忽略性別）
     if (!matched) matched = voices.find(v => v.lang.includes('en-GB'));
     if (!matched) matched = voices.find(v => v.lang.includes('en'));
     
     return matched || voices[0];
 }
+
 // ==================== 解析腳本 ====================
 function parseSegments(audioScript) {
     const segments = [];
@@ -396,17 +414,15 @@ function parseSegments(audioScript) {
     return segments.filter(s => s.text.length > 0);
 }
 
-// ==================== 用戶權限過濾（核心修改）====================
+// ==================== 用戶權限過濾 ====================
 function filterUnitsByUser(units) {
     console.log('🔍 filterUnitsByUser 被調用，輸入單元數量:', units.length);
 
-    // 1. 管理員：顯示所有教材
     if (!isGuestMode && currentUserData?.role === 'admin') {
         console.log('👑 管理員模式：顯示所有教材');
         return units;
     }
 
-    // 2. 訪客模式
     if (isGuestMode) {
         const guestGrade = getGuestGrade();
         const filtered = units.filter(unit => {
@@ -418,16 +434,13 @@ function filterUnitsByUser(units) {
         return filtered;
     }
 
-    // 3. 一般登入使用者
     if (currentUser && currentUserData) {
-let userGrades = currentUserData.grade || [];
-// 如果是字串，轉為陣列
-if (typeof userGrades === 'string') {
-    userGrades = [userGrades];
-}
+        let userGrades = currentUserData.grade || [];
+        if (typeof userGrades === 'string') {
+            userGrades = [userGrades];
+        }
         const userPublishers = currentUserData.publishers || [];
         
-        // 檢查試用期
         const trialEndAt = currentUserData.trialEndAt;
         const isTrial = trialEndAt && new Date(trialEndAt) > new Date();
         
@@ -438,36 +451,28 @@ if (typeof userGrades === 'string') {
             trialEndAt: trialEndAt
         });
 
-        // 嚴格模式：年級為空 → 看不到任何教材
         if (userGrades.length === 0) {
             console.warn('⚠️ 使用者缺少年級設定，無法顯示任何教材');
             return [];
         }
 
-        // 決定有效的出版社列表
         let effectivePublishers = [...userPublishers];
         
-        // 試用期且沒有分配任何出版社 → 使用預設教材 (Open示範)
         if (isTrial && effectivePublishers.length === 0) {
             effectivePublishers = [guestPublisher];
             console.log('🎁 試用期：使用預設教材', guestPublisher);
         }
 
-        // 如果 effectivePublishers 仍為空 → 看不到教材
         if (effectivePublishers.length === 0) {
             console.warn('⚠️ 使用者沒有教材權限（試用期已過且未分配出版社）');
             return [];
         }
 
         const filtered = units.filter(unit => {
-            // 年級交集檢查
             const unitGrades = unit.grade || [];
             const gradeMatch = unitGrades.some(g => userGrades.includes(g));
-
-            // 出版社交集檢查
             const unitPublishers = unit.publisher || [];
             const publisherMatch = unitPublishers.some(p => effectivePublishers.includes(p));
-
             return gradeMatch && publisherMatch;
         });
 
@@ -521,7 +526,6 @@ function renderSidebar() {
         return;
     }
     
-    // 構建章節列表
     const chaptersMap = new Map();
     availableUnits.forEach(unit => {
         const chapterId = unit.chapter || 'default';
@@ -548,7 +552,7 @@ function renderSidebar() {
     for (let idx = 0; idx < visibleChapters.length; idx++) {
         const chapter = visibleChapters[idx];
         const chapterId = chapter.id;
-const displayTitle = getChapterDisplayTitle(chapter);
+        const displayTitle = getChapterDisplayTitle(chapter);
         const hasActivePractice = chapter.practices.some(p => p.id === currentUnitId);
         const showClass = hasActivePractice ? 'show' : '';
         
@@ -589,6 +593,7 @@ const displayTitle = getChapterDisplayTitle(chapter);
         link.addEventListener('click', () => {
             const unitId = link.dataset.practiceId;
             if (unitId) {
+                saveLastPractice(unitId);
                 loadUnit(unitId);
             }
         });
@@ -810,26 +815,23 @@ async function loadUnit(unitId) {
         if (titleEl) {
             const unitInfo = unitsIndex.units.find(u => u.id === unitId);
             if (unitInfo && systemConfig && systemConfig.chapterMapping) {
-                // 直接從 unitInfo 獲取章節標題
-const chapterTitleText = unitInfo.chapterTitle || '';
+                const chapterTitleText = unitInfo.chapterTitle || '';
 
-// 從系統配置獲取章節對應的月份
-let year = new Date().getFullYear();
-let month = new Date().getMonth() + 1;
+                let year = new Date().getFullYear();
+                let month = new Date().getMonth() + 1;
 
-if (systemConfig && systemConfig.chapterMapping) {
-    // 查找當前章節對應的月份
-    for (const [yearMonth, chapterId] of Object.entries(systemConfig.chapterMapping)) {
-        if (chapterId === unitInfo.chapter) {
-            const [mapYear, mapMonth] = yearMonth.split('-');
-            year = parseInt(mapYear);
-            month = parseInt(mapMonth);
-            break;
-        }
-    }
-}
+                if (systemConfig && systemConfig.chapterMapping) {
+                    for (const [yearMonth, chapterId] of Object.entries(systemConfig.chapterMapping)) {
+                        if (chapterId === unitInfo.chapter) {
+                            const [mapYear, mapMonth] = yearMonth.split('-');
+                            year = parseInt(mapYear);
+                            month = parseInt(mapMonth);
+                            break;
+                        }
+                    }
+                }
 
-const mainTitle = `${year}年${month}月 · ${chapterTitleText}`;
+                const mainTitle = `${year}年${month}月 · ${chapterTitleText}`;
                 titleEl.innerHTML = escapeHtml(mainTitle);
             } else {
                 titleEl.innerHTML = escapeHtml(currentPracticeData.title || '');
@@ -2053,13 +2055,45 @@ async function init() {
             await loadUnitsIndex();
             await loadSystemConfig();
             await preloadVoices();
-	    renderSidebar();
+            renderSidebar();
             initFloatingControls();
             
             if (unitsIndex.units && unitsIndex.units.length > 0) {
                 let availableUnits = filterUnitsByUser(unitsIndex.units);
                 if (availableUnits.length > 0) {
-                    await loadUnit(availableUnits[0].id);
+                    let unitToLoad = null;
+                    
+                    if (!isGuestMode) {
+                        // 一般用戶：嘗試載入上次練習
+                        const lastPracticeId = getLastPractice();
+                        const lastPracticeExists = lastPracticeId && availableUnits.some(u => u.id === lastPracticeId);
+                        
+                        if (lastPracticeExists) {
+                            unitToLoad = lastPracticeId;
+                            console.log(`📂 載入上次練習: ${lastPracticeId}`);
+                        } else {
+                            // 第一次登入：載入當前月份的章節
+                            const currentMonthChapterId = getCurrentMonthChapterId();
+                            if (currentMonthChapterId) {
+                                const currentMonthUnit = availableUnits.find(u => u.chapter === currentMonthChapterId);
+                                if (currentMonthUnit) {
+                                    unitToLoad = currentMonthUnit.id;
+                                    console.log(`📂 首次登入，載入當前月份章節: ${currentMonthChapterId} → ${unitToLoad}`);
+                                }
+                            }
+                            
+                            if (!unitToLoad) {
+                                unitToLoad = availableUnits[0].id;
+                                console.log(`📂 載入第一個可用練習: ${unitToLoad}`);
+                            }
+                        }
+                    } else {
+                        // 訪客模式：維持原樣，載入第一個可用練習
+                        unitToLoad = availableUnits[0].id;
+                        console.log(`👤 訪客模式，載入第一個可用練習: ${unitToLoad}`);
+                    }
+                    
+                    await loadUnit(unitToLoad);
                 } else {
                     showNoMaterialMessage();
                 }

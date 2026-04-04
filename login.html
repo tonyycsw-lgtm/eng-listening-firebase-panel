@@ -12,14 +12,15 @@
             box-sizing: border-box;
         }
         
-body {
-    min-height: 100vh;
-    background: #f5f7fa;  /* 淺灰色，不是漸變 */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-}
+        body {
+            min-height: 100vh;
+            background: #f5f7fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
         
         .login-container {
             background: white;
@@ -137,6 +138,119 @@ body {
             margin-bottom: 20px;
             display: none;
         }
+        
+        /* 首次登入彈窗樣式 */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            backdrop-filter: blur(4px);
+        }
+        
+        .overlay-content {
+            background: white;
+            border-radius: 32px;
+            padding: 32px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.3s ease;
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .overlay-content h3 {
+            font-size: 22px;
+            color: #1f2937;
+            margin-bottom: 8px;
+        }
+        
+        .overlay-content .hint-text {
+            font-size: 14px;
+            color: #6b7280;
+            margin-bottom: 24px;
+        }
+        
+        .overlay-content .input-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 6px;
+            display: block;
+        }
+        
+        .overlay-content .input-label .required {
+            color: #ef4444;
+        }
+        
+        .overlay-content select {
+            width: 100%;
+            padding: 14px 16px;
+            border: 1.5px solid #e5e7eb;
+            border-radius: 40px;
+            font-size: 15px;
+            margin-bottom: 20px;
+            transition: all 0.2s;
+            background: white;
+        }
+        
+        .overlay-content select:focus {
+            border-color: #4f46e5;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+        
+        .overlay-content button {
+            width: 100%;
+            padding: 14px;
+            border-radius: 40px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+        
+        .overlay-content .btn-primary {
+            background: #4f46e5;
+            color: white;
+        }
+        
+        .overlay-content .btn-primary:hover:not(:disabled) {
+            background: #4338ca;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+        }
+        
+        .overlay-content .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .message {
+            margin-top: 16px;
+            padding: 12px;
+            border-radius: 40px;
+            font-size: 14px;
+            text-align: center;
+            display: none;
+        }
+        
+        .message.error {
+            background: #fee2e2;
+            color: #dc2626;
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -162,22 +276,53 @@ body {
         </button>
         <p class="guest-note">訪客無需註冊，立即體驗</p>
     </div>
+    
+    <!-- 首次登入彈窗（僅 Google 登入新用戶） -->
+    <div class="overlay" id="firstLoginOverlay">
+        <div class="overlay-content">
+            <h3>歡迎！首次使用</h3>
+            <div class="hint-text">請填寫以下資料完成設定</div>
+            
+            <label class="input-label">年級 <span class="required">*</span></label>
+            <select id="gradeSelect" required>
+                <option value="">請選擇年級</option>
+                <option value="P1">P1</option>
+                <option value="P2">P2</option>
+                <option value="P3">P3</option>
+                <option value="P4">P4</option>
+                <option value="P5">P5</option>
+                <option value="P6">P6</option>
+                <option value="S1">S1</option>
+                <option value="S2">S2</option>
+                <option value="S3">S3</option>
+                <option value="S4">S4</option>
+                <option value="S5">S5</option>
+                <option value="S6">S6</option>
+            </select>
+            
+            <button class="btn-primary" id="confirmBtn">
+                確認
+            </button>
+            
+            <div class="message" id="formMessage"></div>
+        </div>
+    </div>
 
     <script type="module">
         import { 
-            auth,
-	    db,        	 
-            signInWithPopup, 
-            GoogleAuthProvider, 
-            signInAnonymously,
-            doc, 
-            setDoc, 
-            getDoc
+            auth, db, doc, setDoc, getDoc, updateDoc, increment,
+            signInWithPopup, GoogleAuthProvider, signInAnonymously
         } from './firebase-config.js';
         
         const googleBtn = document.getElementById('googleLoginBtn');
         const guestBtn = document.getElementById('guestLoginBtn');
         const errorDiv = document.getElementById('errorMessage');
+        const overlay = document.getElementById('firstLoginOverlay');
+        const gradeSelect = document.getElementById('gradeSelect');
+        const confirmBtn = document.getElementById('confirmBtn');
+        const formMessage = document.getElementById('formMessage');
+        
+        let pendingUser = null;
         
         function showError(message) {
             errorDiv.textContent = message;
@@ -187,53 +332,118 @@ body {
             }, 5000);
         }
         
+        function showFormError(message) {
+            formMessage.textContent = message;
+            formMessage.className = 'message error';
+        }
+        
+        function hideFormError() {
+            formMessage.className = 'message';
+            formMessage.style.display = 'none';
+        }
+        
+        // 處理首次登入資料提交
+        async function handleFirstLoginSubmit() {
+            const grade = gradeSelect.value;
+            
+            hideFormError();
+            
+            if (!grade) {
+                showFormError('請選擇年級');
+                return;
+            }
+            
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 處理中...';
+            
+            try {
+                const userRef = doc(db, 'users', pendingUser.uid);
+                
+                // 設定試用期（7天）
+                const trialEndDate = new Date();
+                trialEndDate.setDate(trialEndDate.getDate() + 7);
+                
+                await setDoc(userRef, {
+                    email: pendingUser.email,
+                    displayName: pendingUser.displayName || pendingUser.email || '會員',
+                    photoURL: pendingUser.photoURL || null,
+                    role: 'user',
+                    grade: grade,
+                    publishers: [],
+                    premium: false,
+                    plan: 'free',
+                    expiresAt: null,
+                    trialEndAt: trialEndDate.toISOString(),
+                    badgesEarned: 0,
+                    totalScore: 0,
+                    progress: {},
+                    stats: {
+                        totalPractices: 0,
+                        avgPercentage: 0,
+                        badges: { gold: 0, pass: 0 }
+                    },
+                    loginCount: 1,
+                    totalLearningTime: 0,
+                    createdAt: new Date().toISOString(),
+                    lastLoginAt: new Date().toISOString(),
+                    lastActiveAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                });
+                
+                console.log('✅ 用戶資料已建立:', { grade, trialEndAt: trialEndDate.toISOString() });
+                
+                overlay.style.display = 'none';
+                window.location.href = './index.html';
+                
+            } catch (error) {
+                console.error('建立用戶資料失敗:', error);
+                showFormError('設定失敗，請稍後再試');
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = '確認';
+            }
+        }
+        
         // Google 登入
         googleBtn.addEventListener('click', async () => {
             try {
                 googleBtn.disabled = true;
                 googleBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 登入中...';
+                errorDiv.style.display = 'none';
                 
                 const provider = new GoogleAuthProvider();
+                provider.setCustomParameters({ prompt: 'select_account' });
+                
                 const result = await signInWithPopup(auth, provider);
                 const user = result.user;
                 
-                // 檢查並創建用戶文檔
+                console.log('✅ Google 登入成功:', user.email);
+                
                 const userRef = doc(db, 'users', user.uid);
                 const userSnap = await getDoc(userRef);
                 
                 if (!userSnap.exists()) {
-                    await setDoc(userRef, {
-                        email: user.email,
-                        displayName: user.displayName || '',
-                        photoURL: user.photoURL || '',
-                        createdAt: new Date().toISOString(),
-                        lastLoginAt: new Date().toISOString(),
-                        loginCount: 1,
-                        progress: {},
-                        stats: {
-                            totalPractices: 0,
-                            avgPercentage: 0,
-                            badges: { gold: 0, pass: 0 }
-                        },
-                        totalScore: 0,
-                        badgesEarned: 0,
-                        premium: false,
-                        publishers: ["Open示範"],
-                        role: 'user'
-                    });
+                    // 新用戶：顯示年級選擇彈窗
+                    pendingUser = user;
+                    overlay.style.display = 'flex';
+                    googleBtn.disabled = false;
+                    googleBtn.innerHTML = '<i class="fab fa-google"></i> 使用 Google 帳號登入';
                 } else {
+                    // 已存在用戶：直接登入
                     // 更新最後登入時間
-                    await setDoc(userRef, {
+                    await updateDoc(userRef, {
                         lastLoginAt: new Date().toISOString(),
-                        loginCount: (userSnap.data().loginCount || 0) + 1
-                    }, { merge: true });
+                        loginCount: increment(1)
+                    });
+                    window.location.href = './index.html';
                 }
-                
-                window.location.href = './index.html';
                 
             } catch (error) {
                 console.error('Google 登入失敗:', error);
-                showError('登入失敗：' + error.message);
+                if (error.code === 'auth/popup-closed-by-user') {
+                    showError('登入視窗被關閉，請重試');
+                } else {
+                    showError('登入失敗：' + error.message);
+                }
                 googleBtn.disabled = false;
                 googleBtn.innerHTML = '<i class="fab fa-google"></i> 使用 Google 帳號登入';
             }
@@ -248,7 +458,6 @@ body {
                 const credential = await signInAnonymously(auth);
                 const userId = credential.user.uid;
                 
-                // 檢查並創建訪客文檔
                 const userRef = doc(db, 'users', userId);
                 const userSnap = await getDoc(userRef);
                 
@@ -268,6 +477,10 @@ body {
                         isGuest: true,
                         publishers: ["Open示範"]
                     });
+                } else {
+                    await updateDoc(userRef, {
+                        lastLoginAt: new Date().toISOString()
+                    });
                 }
                 
                 window.location.href = './index.html';
@@ -278,6 +491,12 @@ body {
                 guestBtn.disabled = false;
                 guestBtn.innerHTML = '<i class="fas fa-user-friends"></i> 訪客試用';
             }
+        });
+        
+        // 確認按鈕
+        confirmBtn.addEventListener('click', handleFirstLoginSubmit);
+        gradeSelect.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleFirstLoginSubmit();
         });
     </script>
 </body>

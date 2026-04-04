@@ -59,6 +59,10 @@ let onlineStatusInterval = null;
 // 章節排程相關變量
 let systemConfig = null;
 
+// 測試數據暫存
+let testUnits = [];        // 測試單元的索引
+let testMaterials = {};    // 測試單元的內容 (key: testId, value: material data)
+
 const ONLINE_STATUS_INTERVAL = 60000;
 
 // ==================== 儲存管理器（數據隔離）====================
@@ -143,7 +147,7 @@ function setGuestGrade(grade) {
 
 // ==================== 記住上次練習（僅一般用戶）====================
 function saveLastPractice(unitId) {
-    if (isGuestMode) return;  // 訪客模式不儲存
+    if (isGuestMode) return;
     if (!unitId) return;
     const key = `${StorageManager.getPrefix()}lastPractice`;
     localStorage.setItem(key, unitId);
@@ -151,7 +155,7 @@ function saveLastPractice(unitId) {
 }
 
 function getLastPractice() {
-    if (isGuestMode) return null;  // 訪客模式不回傳
+    if (isGuestMode) return null;
     const key = `${StorageManager.getPrefix()}lastPractice`;
     return localStorage.getItem(key);
 }
@@ -265,6 +269,144 @@ function getCurrentMonthChapterId() {
     const now = new Date();
     const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     return systemConfig.chapterMapping[yearMonth] || null;
+}
+
+// ==================== 管理員測試工具 ====================
+function renderAdminTools() {
+    const container = document.getElementById('adminToolsContainer');
+    if (!container) return;
+    
+    const isAdmin = !isGuestMode && currentUserData?.role === 'admin';
+    
+    if (!isAdmin) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    container.innerHTML = `
+        <div class="admin-tools" style="margin: 12px 0; padding: 12px; background: #f8fafc; border-radius: 12px; border: 1px solid #eef2ff;">
+            <div style="font-size: 12px; font-weight: 600; color: #1E3A8A; margin-bottom: 8px;">
+                <i class="fas fa-crown"></i> 管理員工具
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; color: #475569;">
+                    <i class="fas fa-file-upload"></i>
+                    <span>選擇 JSON 檔案 (可多選)</span>
+                    <input type="file" id="testFileInput" accept=".json" multiple style="display: none;">
+                </label>
+                <div style="display: flex; gap: 8px;">
+                    <button id="uploadTestBtn" class="admin-tool-btn" style="flex:1; background: #4f46e5; color: white; border: none; padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer;">
+                        <i class="fas fa-upload"></i> 上傳測試單元
+                    </button>
+                    <button id="clearTestBtn" class="admin-tool-btn" style="flex:1; background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer;">
+                        <i class="fas fa-trash-alt"></i> 清除全部
+                    </button>
+                </div>
+                <div style="font-size: 10px; color: #94a3b8; text-align: center;">
+                    💡 刷新頁面即清除測試數據
+                </div>
+            </div>
+        </div>
+    `;
+    
+    const fileInput = document.getElementById('testFileInput');
+    const uploadBtn = document.getElementById('uploadTestBtn');
+    const clearBtn = document.getElementById('clearTestBtn');
+    
+    if (!fileInput || !uploadBtn || !clearBtn) return;
+    
+    uploadBtn.addEventListener('click', () => {
+        fileInput.click();
+    });
+    
+    fileInput.addEventListener('change', async (e) => {
+        const files = Array.from(e.target.files);
+        if (files.length === 0) return;
+        
+        let successCount = 0;
+        for (const file of files) {
+            try {
+                const text = await file.text();
+                const jsonData = JSON.parse(text);
+                const unitId = addTestUnit(jsonData);
+                if (unitId) successCount++;
+            } catch (error) {
+                console.error('解析檔案失敗:', file.name, error);
+                showToast(`解析失敗: ${file.name}`, 'error');
+            }
+        }
+        
+        if (successCount > 0) {
+            showToast(`成功上傳 ${successCount} 個測試單元`, 'success');
+            renderSidebar();
+            if (!currentUnitId && unitsIndex.units.length > 0) {
+                const availableUnits = filterUnitsByUser(unitsIndex.units);
+                if (availableUnits.length > 0) {
+                    loadUnit(availableUnits[0].id);
+                }
+            }
+        }
+        
+        fileInput.value = '';
+    });
+    
+    clearBtn.addEventListener('click', () => {
+        if (testUnits.length === 0) {
+            showToast('沒有測試數據需要清除', 'info');
+            return;
+        }
+        
+        unitsIndex.units = unitsIndex.units.filter(u => !u.isTest);
+        testUnits = [];
+        testMaterials = {};
+        
+        renderSidebar();
+        
+        if (currentUnitId && currentUnitId.startsWith('test_')) {
+            const availableUnits = filterUnitsByUser(unitsIndex.units);
+            if (availableUnits.length > 0) {
+                loadUnit(availableUnits[0].id);
+            } else {
+                showNoMaterialMessage();
+            }
+        }
+        
+        showToast('已清除所有測試數據', 'success');
+    });
+}
+
+// 添加測試單元到系統
+function addTestUnit(materialData) {
+    if (!materialData.title) {
+        console.error('缺少 title 欄位');
+        return null;
+    }
+    
+    const timestamp = Date.now();
+    const randomId = Math.random().toString(36).substring(2, 8);
+    const testId = `test_${timestamp}_${randomId}`;
+    
+    const chapterId = materialData.chapter || 'test_chapter';
+    const chapterTitle = materialData.chapterTitle || '測試章節';
+    
+    const testUnit = {
+        id: testId,
+        title: materialData.title,
+        description: materialData.desc || '',
+        chapter: chapterId,
+        chapterTitle: chapterTitle,
+        grade: materialData.metadata?.grade || ['P6'],
+        publisher: materialData.metadata?.publisher || ['Open示範'],
+        isTest: true,
+        file: null
+    };
+    
+    testUnits.push(testUnit);
+    unitsIndex.units.push(testUnit);
+    testMaterials[testId] = materialData;
+    
+    console.log(`✅ 測試單元已添加: ${testId} (${materialData.title})`);
+    return testId;
 }
 
 // ==================== 在線狀態更新 ====================
@@ -756,6 +898,84 @@ async function loadUnit(unitId) {
         return;
     }
     
+    // 檢查是否為測試單元
+    if (unitId.startsWith('test_') && testMaterials[unitId]) {
+        console.log('🧪 載入測試單元:', unitId);
+        currentPracticeData = testMaterials[unitId];
+        
+        if (isPlaying) {
+            stopPlayback();
+            isPlaying = false;
+            const playBtn = document.getElementById('floatPlayBtn');
+            if (playBtn) playBtn.innerHTML = '<i class="fas fa-play"></i>';
+        }
+        
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        if (scoreDisplay) {
+            scoreDisplay.innerHTML = '📊 ';
+        }
+        
+        currentUnitId = unitId;
+        
+        const parts = unitId.split('_');
+        if (parts.length >= 3) {
+            currentBook = parts[0];
+            currentChapter = parts[1];
+            currentPractice = parts[2];
+        } else {
+            currentBook = 'test';
+            currentChapter = 'test';
+            currentPractice = unitId;
+        }
+        
+        const levelMatch = unitId.match(/^([a-zA-Z0-9]+)_/);
+        if (levelMatch) {
+            let level = levelMatch[1].toUpperCase();
+            const levelTitle = `Level ${level}`;
+            const levelElement = document.querySelector('.nav-section-title');
+            if (levelElement) {
+                levelElement.textContent = levelTitle;
+            }
+        }
+        
+        segments = parseSegments(currentPracticeData.audioScript);
+        currentSegmentIndex = 0;
+        updateFloatingDisplay();
+        clearAllHighlights();
+        
+        renderQuestions(currentPracticeData.questions);
+        
+        const titleEl = document.getElementById('practice-title');
+        const descEl = document.getElementById('practice-desc');
+        
+        if (titleEl) {
+            titleEl.innerHTML = escapeHtml(currentPracticeData.title || '');
+        }
+        if (descEl) {
+            descEl.innerHTML = escapeHtml(currentPracticeData.desc || '');
+        }
+        
+        document.querySelectorAll('.practice-link').forEach(link => {
+            if (link.dataset.practiceId === unitId) {
+                link.classList.add('active');
+            } else {
+                link.classList.remove('active');
+            }
+        });
+        
+        const activeLink = document.querySelector(`.practice-link[data-practice-id="${unitId}"]`);
+        if (activeLink) {
+            const chapterDiv = activeLink.closest('.practice-list');
+            if (chapterDiv && !chapterDiv.classList.contains('show')) {
+                chapterDiv.classList.add('show');
+            }
+        }
+        
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+    }
+    
+    // 原有 Firestore 載入邏輯
     if (isPlaying) {
         stopPlayback();
         isPlaying = false;
@@ -2052,6 +2272,7 @@ async function init() {
             });
             
             updateUserInterface();
+            renderAdminTools();
             await loadUnitsIndex();
             await loadSystemConfig();
             await preloadVoices();
@@ -2064,7 +2285,6 @@ async function init() {
                     let unitToLoad = null;
                     
                     if (!isGuestMode) {
-                        // 一般用戶：嘗試載入上次練習
                         const lastPracticeId = getLastPractice();
                         const lastPracticeExists = lastPracticeId && availableUnits.some(u => u.id === lastPracticeId);
                         
@@ -2072,7 +2292,6 @@ async function init() {
                             unitToLoad = lastPracticeId;
                             console.log(`📂 載入上次練習: ${lastPracticeId}`);
                         } else {
-                            // 第一次登入：載入當前月份的章節
                             const currentMonthChapterId = getCurrentMonthChapterId();
                             if (currentMonthChapterId) {
                                 const currentMonthUnit = availableUnits.find(u => u.chapter === currentMonthChapterId);
@@ -2088,7 +2307,6 @@ async function init() {
                             }
                         }
                     } else {
-                        // 訪客模式：維持原樣，載入第一個可用練習
                         unitToLoad = availableUnits[0].id;
                         console.log(`👤 訪客模式，載入第一個可用練習: ${unitToLoad}`);
                     }

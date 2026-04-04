@@ -119,6 +119,13 @@ function escapeHtml(str) {
     });
 }
 
+// 新增：格式化中文翻譯，按句子換行顯示
+function formatChineseText(text) {
+    if (!text) return '';
+    // 按中文句子分隔符進行換行：句號、驚嘆號、問號、分號
+    return text.replace(/([。！？；])\s*/g, '$1<br>');
+}
+
 function showToast(message, type = 'info') {
     const existing = document.querySelector('.toast-message');
     if (existing) existing.remove();
@@ -1929,10 +1936,13 @@ function updateFloatingDisplay() {
     if (roleElement) roleElement.innerHTML = `<i class="fas ${roleIcon}"></i> ${escapeHtml(displayName)}`;
     if (textElement) textElement.textContent = seg.text;
     
-    if (seg.translation) {
-        const translationText = document.getElementById('floatTranslationText');
-        if (translationText) translationText.textContent = seg.translation;
+if (seg.translation) {
+    const translationText = document.getElementById('floatTranslationText');
+    if (translationText) {
+        // 使用 innerHTML 並格式化中文（按句子換行）
+        translationText.innerHTML = formatChineseText(seg.translation);
     }
+}
     
     const floatingPlayer = document.getElementById('floatingPlayer');
     const englishDiv = document.getElementById('floatingEnglish');

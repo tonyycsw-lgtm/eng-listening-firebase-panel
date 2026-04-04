@@ -525,19 +525,36 @@ function parseSegments(audioScript) {
     if (!audioScript || !Array.isArray(audioScript)) return segments;
     
     for (const item of audioScript) {
-        let role = item.speaker.toLowerCase();
+        let originalSpeaker = item.speaker;
+        let speakerLower = originalSpeaker.toLowerCase();
         let text = item.original;
         let translation = item.translation || null;
         
-        if (role === 'host') role = 'host';
-        else if (role === 'narrator') role = 'narrator';
-        else if (role === 'announcer') role = 'announcer';
-        else role = 'caller';
+        // 映射角色類型（用於圖標和默認名稱）
+        let roleType = 'caller';
+        let defaultName = '來賓';
+        
+        if (speakerLower === 'host') {
+            roleType = 'host';
+            defaultName = '主持人';
+        } else if (speakerLower === 'narrator') {
+            roleType = 'narrator';
+            defaultName = '旁白';
+        } else if (speakerLower === 'announcer') {
+            roleType = 'announcer';
+            defaultName = '播音員';
+        }
+        
+        // 顯示名稱：如果是標準角色則使用默認名稱，否則使用原始名稱
+        let displayName = defaultName;
+        if (roleType === 'caller' && originalSpeaker !== 'caller') {
+            displayName = originalSpeaker;
+        }
         
         const questionPattern = /(Question \d+: [^?]+[?。！]?)/gi;
         const questionMatches = [...text.matchAll(questionPattern)];
         
-        if (questionMatches.length > 1 && role === 'narrator') {
+        if (questionMatches.length > 1 && roleType === 'narrator') {
             let lastIndex = 0;
             for (const qMatch of questionMatches) {
                 const qText = qMatch[0];
@@ -545,24 +562,43 @@ function parseSegments(audioScript) {
                 if (qIndex > lastIndex) {
                     const beforeText = text.substring(lastIndex, qIndex).trim();
                     if (beforeText) {
-                        segments.push({ role, text: beforeText, translation });
+                        segments.push({ 
+                            role: roleType, 
+                            displayName: displayName,
+                            text: beforeText, 
+                            translation 
+                        });
                     }
                 }
-                segments.push({ role, text: qText, translation });
+                segments.push({ 
+                    role: roleType, 
+                    displayName: displayName,
+                    text: qText, 
+                    translation 
+                });
                 lastIndex = qIndex + qText.length;
             }
             const remaining = text.substring(lastIndex).trim();
             if (remaining) {
-                segments.push({ role, text: remaining, translation });
+                segments.push({ 
+                    role: roleType, 
+                    displayName: displayName,
+                    text: remaining, 
+                    translation 
+                });
             }
         } else {
-            segments.push({ role, text, translation });
+            segments.push({ 
+                role: roleType, 
+                displayName: displayName,
+                text, 
+                translation 
+            });
         }
     }
     
     return segments.filter(s => s.text.length > 0);
 }
-
 // ==================== 用戶權限過濾 ====================
 function filterUnitsByUser(units) {
     console.log('🔍 filterUnitsByUser 被調用，輸入單元數量:', units.length);
@@ -1881,12 +1917,18 @@ async function syncProgressToCloud(practiceId, percentage, badge, score, total) 
 function updateFloatingDisplay() {
     if (!segments.length) return;
     const seg = segments[currentSegmentIndex];
-    const roleText = roleNames[seg.role] || roleNames.default;
-    const roleIcon = roleIcons[seg.role] || roleIcons.default;
+    
+    // 使用 displayName 顯示具體名字
+    const displayName = seg.displayName || roleNames[seg.role] || roleNames.default;
+    
+    // 根據角色類型選擇圖標
+    let roleIcon = roleIcons[seg.role] || roleIcons.default;
     const roleElement = document.getElementById('floatRole');
     const textElement = document.getElementById('floatText');
-    if (roleElement) roleElement.innerHTML = `<i class="fas ${roleIcon}"></i> ${roleText}`;
+    
+    if (roleElement) roleElement.innerHTML = `<i class="fas ${roleIcon}"></i> ${escapeHtml(displayName)}`;
     if (textElement) textElement.textContent = seg.text;
+    
     if (seg.translation) {
         const translationText = document.getElementById('floatTranslationText');
         if (translationText) translationText.textContent = seg.translation;
@@ -1917,7 +1959,6 @@ function updateFloatingDisplay() {
         }
     }
 }
-
 function applyStoredSize() {
     const floatingPlayer = document.getElementById('floatingPlayer');
     if (!floatingPlayer) return;

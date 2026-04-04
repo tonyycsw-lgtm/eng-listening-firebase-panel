@@ -211,6 +211,12 @@ async function loadSystemConfig() {
 }
 
 function getVisibleChapters(allChapters) {
+    // 管理員：顯示所有章節（方便測試）
+    if (!isGuestMode && currentUserData?.role === 'admin') {
+        console.log('👑 管理員模式：顯示所有章節');
+        return allChapters;
+    }
+    
     if (!systemConfig || !systemConfig.chapterMapping) {
         return allChapters;
     }
@@ -231,7 +237,6 @@ function getVisibleChapters(allChapters) {
     
     return allChapters.filter(chapter => visibleChapterIds.includes(chapter.id));
 }
-
 function getChapterDisplayTitle(chapter) {
     let chapterTitle = '';
     if (typeof chapter === 'object') {
